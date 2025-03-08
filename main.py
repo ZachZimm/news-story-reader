@@ -53,6 +53,15 @@ def tui(stdscr, db_dir, default_datestring):
                     if len(cmd.split()) == 1:
                         cmd = f"c {selected_index + 1}"
                     copy_stories(stdscr, cmd, stories, titles)
+                elif cmd.isdigit():
+                    # If user typed just a number
+                    selected_index = int(cmd) - 1
+                    if selected_index > len(stories):
+                        selected_index = len(stories) - 1
+                    elif selected_index < 1:
+                        selected_index = 0
+                    display_story(stdscr, titles[selected_index], stories[selected_index], selected_index, current_date)
+
             continue
         else:
             # user selected a story index
@@ -64,6 +73,7 @@ def tui(stdscr, db_dir, default_datestring):
                     stdscr,
                     titles[selected_index],
                     stories[selected_index],
+                    selected_index,
                     current_date,
                     offset=story_offset
                 )

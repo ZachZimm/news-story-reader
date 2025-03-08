@@ -23,8 +23,7 @@ def display_list(stdscr, titles, datestring, initial_selection=0):
         for idx, title in enumerate(titles):
             x = 2
             y = idx + 2
-            marker = "> " if idx == current_row else "  "
-            line = f"{idx+1}:\t {marker}{title}"
+            line = f"{idx+1}:\t{title}"
             if idx == current_row:
                 stdscr.attron(curses.A_REVERSE)
                 stdscr.addstr(y, x, line)
