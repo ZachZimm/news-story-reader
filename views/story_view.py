@@ -36,8 +36,8 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0):
         stdscr.clear()
         stdscr.addstr(0, margin, f"{story_index+1}: {title} - {current_date}", curses.A_BOLD)
 
-        for i in range(2, h - 2):
-            row_idx = i - 2 + offset
+        for i in range(1, h - 1):
+            row_idx = i - 1 + offset
             if row_idx < total_rows:
                 # Landmarks
                 if row_idx % 2 == 0:
