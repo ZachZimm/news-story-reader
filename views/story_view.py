@@ -9,6 +9,29 @@ from .command_mode import command_mode
 # Cache for wrapped text lines: {cache_key: {'wrapped_lines': [...], 'col_width': int}}
 _wrapped_cache = {}
 
+
+def _format_issue_date(raw_date):
+    """Format the provided issue_date into a human-readable string."""
+    if isinstance(raw_date, datetime.datetime):
+        date_obj = raw_date.date()
+    elif isinstance(raw_date, datetime.date):
+        date_obj = raw_date
+    else:
+        date_str = str(raw_date).strip() if raw_date is not None else ""
+        if not date_str:
+            return "Unknown date"
+
+        for fmt in ("%Y%m%d", "%Y-%m-%d"):
+            try:
+                date_obj = datetime.datetime.strptime(date_str, fmt).date()
+                break
+            except ValueError:
+                continue
+        else:
+            return date_str
+
+    return date_obj.strftime("%B %d, %Y")
+
 def _get_cache_key(story_content, col_width):
     """Generate a cache key for wrapped text."""
     # Include both content and column width in cache key
@@ -33,7 +56,7 @@ def _get_wrapped_lines(story, col_width):
     
     return _wrapped_cache[cache_key]
 
-def display_story(stdscr, title, story, story_index, datestring, offset=0, knn_results=None):
+def display_story(stdscr, title, story, story_index, issue_date, offset=0, knn_results=None):
     """
     Returns one of:
       - "back" if user pressed q
@@ -42,6 +65,7 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0, knn_r
         (including current scroll offset).
     
     Args:
+        issue_date: The story's issue date (YYYYMMDD string/int or date object) used for display.
         knn_results: If not None, indicates we're viewing a story from KNN results.
                     When Q is pressed, should return to KNN results list.
     """
@@ -50,7 +74,7 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0, knn_r
     margin = 4
     even_landmark = "♦︎"
     odd_landmark = "♢"
-    current_date = datetime.datetime.strptime(datestring, "%Y%m%d").strftime("%B %d, %Y")
+    formatted_issue_date = _format_issue_date(issue_date)
 
     col_width = (w - margin * 2 - 4) // 2
     # Get wrapped lines from cache (or compute and cache)
@@ -60,7 +84,7 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0, knn_r
 
     while True:
         stdscr.clear()
-        stdscr.addstr(0, margin, f"{story_index+1}: {title} - {current_date}", curses.A_BOLD)
+        stdscr.addstr(0, margin, f"{story_index+1}: {title} - {formatted_issue_date}", curses.A_BOLD)
 
         for i in range(1, h - 1):
             row_idx = i - 1 + offset

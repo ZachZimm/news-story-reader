@@ -4,6 +4,7 @@ import curses
 import datetime
 import os
 import argparse
+import threading
 from dotenv import load_dotenv
 
 # Our own modules
@@ -15,6 +16,27 @@ from views.date_popup import display_dates_popup
 from similarity import find_k_most_similar
 
 all_dates = []  # We'll populate this once we know db_config
+
+def wait_for_embeddings(stdscr, embeddings_ready, all_embeddings):
+    """Wait for embeddings to be ready, showing a message if needed.
+    
+    Returns True if embeddings are available, False otherwise.
+    """
+    if embeddings_ready.is_set():
+        return len(all_embeddings) > 0
+    
+    # Show loading message and wait
+    stdscr.clear()
+    stdscr.addstr(0, 2, "Waiting for embeddings to load...", curses.A_BOLD)
+    stdscr.addstr(2, 2, "This may take a moment. Please wait...")
+    stdscr.refresh()
+    
+    # Wait for embeddings to be ready (with timeout to avoid infinite wait)
+    embeddings_ready.wait(timeout=300)  # 5 minute timeout
+    
+    if embeddings_ready.is_set() and len(all_embeddings) > 0:
+        return True
+    return False
 
 def tui(stdscr, db_config, default_datestring, use_sqlite=True):
     curses.curs_set(0)
@@ -29,15 +51,30 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
     story_ids = [story_id for story_id, _ in story_list]  # Keep IDs for lazy loading
     story_cache = {}  # Cache loaded story content: {story_id: {'title': ..., 'content': ...}}
     
-    # Lazy load embeddings when initial story list is displayed
+    # Background loading of embeddings
     # Store all embeddings in memory: {story_id: [float, ...]}
     all_embeddings = {}
+    embeddings_ready = threading.Event()
+    embedding_thread = None
+    
+    def load_embeddings_background():
+        """Background thread function to load embeddings."""
+        try:
+            loaded_embeddings = fetch_all_story_embeddings(db_config, use_sqlite)
+            all_embeddings.update(loaded_embeddings)
+        except Exception as e:
+            # If loading fails, embeddings dict remains empty
+            pass
+        finally:
+            embeddings_ready.set()
+    
     if not use_sqlite:
-        # Show loading message
-        stdscr.clear()
-        stdscr.addstr(0, 2, "Loading embeddings...", curses.A_BOLD)
-        stdscr.refresh()
-        all_embeddings = fetch_all_story_embeddings(db_config, use_sqlite)
+        # Start background thread to fetch embeddings
+        embedding_thread = threading.Thread(target=load_embeddings_background, daemon=True)
+        embedding_thread.start()
+    else:
+        # In SQLite mode, embeddings are not available, so mark as ready immediately
+        embeddings_ready.set()
     
     current_date = default_datestring
     selected_index = 0
@@ -71,7 +108,17 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
                 selected_index = list_result[2]
                 if cmd.startswith("k") or cmd.startswith("K"):
                     # KNN search command: k <number> or k<number>
-                    if not use_sqlite and all_embeddings:
+                    if not use_sqlite:
+                        # Wait for embeddings if they're not ready yet
+                        if not wait_for_embeddings(stdscr, embeddings_ready, all_embeddings):
+                            # Embeddings failed to load or timed out
+                            stdscr.clear()
+                            stdscr.addstr(0, 2, "Error: Could not load embeddings.", curses.A_BOLD)
+                            stdscr.addstr(2, 2, "Press any key to continue...")
+                            stdscr.refresh()
+                            stdscr.getch()
+                            continue
+                        
                         # Parse the number
                         cmd_parts = cmd.split()
                         if len(cmd_parts) == 1:
@@ -208,7 +255,14 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
                             story_cache[story_id] = story_data
                     if story_id in story_cache:
                         story_data = story_cache[story_id]
-                        display_story(stdscr, story_data['title'], story_data['content'], selected_index, current_date, knn_results=knn_results)
+                        display_story(
+                            stdscr,
+                            story_data['title'],
+                            story_data['content'],
+                            selected_index,
+                            story_data.get('issue_date', current_date),
+                            knn_results=knn_results
+                        )
 
             continue
         else:
@@ -235,7 +289,7 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
                     story_data['title'],
                     story_data['content'],
                     selected_index,
-                    current_date,
+                    story_data.get('issue_date', current_date),
                     offset=story_offset,
                     knn_results=knn_results
                 )
@@ -251,7 +305,17 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
                     story_offset = story_result[2]  # preserve scroll
                     if cmd.startswith("k") or cmd.startswith("K"):
                         # KNN search command from story view
-                        if not use_sqlite and all_embeddings:
+                        if not use_sqlite:
+                            # Wait for embeddings if they're not ready yet
+                            if not wait_for_embeddings(stdscr, embeddings_ready, all_embeddings):
+                                # Embeddings failed to load or timed out
+                                stdscr.clear()
+                                stdscr.addstr(0, 2, "Error: Could not load embeddings.", curses.A_BOLD)
+                                stdscr.addstr(2, 2, "Press any key to continue...")
+                                stdscr.refresh()
+                                stdscr.getch()
+                                continue
+                            
                             # Parse the number
                             cmd_parts = cmd.split()
                             if len(cmd_parts) == 1:
