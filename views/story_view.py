@@ -3,7 +3,35 @@
 import curses
 import textwrap
 import datetime
+import hashlib
 from .command_mode import command_mode
+
+# Cache for wrapped text lines: {cache_key: {'wrapped_lines': [...], 'col_width': int}}
+_wrapped_cache = {}
+
+def _get_cache_key(story_content, col_width):
+    """Generate a cache key for wrapped text."""
+    # Include both content and column width in cache key
+    content_hash = hashlib.md5(story_content.encode('utf-8')).hexdigest()
+    return f"{content_hash}_{col_width}"
+
+def _get_wrapped_lines(story, col_width):
+    """Get wrapped lines for a story, using cache if available."""
+    cache_key = _get_cache_key(story, col_width)
+    
+    if cache_key not in _wrapped_cache:
+        # Compute wrapped lines
+        wrapper = textwrap.TextWrapper(width=col_width)
+        paragraphs = story.split('\n')
+        wrapped_lines = []
+        for paragraph in paragraphs:
+            wrapped_lines.extend(wrapper.wrap(paragraph))
+            wrapped_lines.append("")
+        if wrapped_lines and wrapped_lines[-1] == "":
+            wrapped_lines.pop()
+        _wrapped_cache[cache_key] = wrapped_lines
+    
+    return _wrapped_cache[cache_key]
 
 def display_story(stdscr, title, story, story_index, datestring, offset=0):
     """
@@ -21,15 +49,9 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0):
     current_date = datetime.datetime.strptime(datestring, "%Y%m%d").strftime("%B %d, %Y")
 
     col_width = (w - margin * 2 - 4) // 2
-    wrapper = textwrap.TextWrapper(width=col_width)
-    paragraphs = story.split('\n')
-    wrapped_lines = []
-    for paragraph in paragraphs:
-        wrapped_lines.extend(wrapper.wrap(paragraph))
-        wrapped_lines.append("")
-    if wrapped_lines and wrapped_lines[-1] == "":
-        wrapped_lines.pop()
-
+    # Get wrapped lines from cache (or compute and cache)
+    wrapped_lines = _get_wrapped_lines(story, col_width)
+    
     total_rows = (len(wrapped_lines) + 1) // 2
 
     while True:

@@ -1,2 +1,19 @@
 python-dotenv
 pyperclip
+aiohttp
+aiosqlite
+sqlite-vec
+python-dotenv
+requests
+beautifulsoup4
+regex
+pytesseract
+pdf2image
+pydantic
+# python-poppler
+google-genai
+openai
+pyperclip
+numpy
+# cupy-cuda13x
+psycopg2-binary
