@@ -141,3 +141,99 @@ def fetch_story_content(db_config, story_id, use_sqlite=True):
         # Only close connection if SQLite (PostgreSQL connection is cached)
         if use_sqlite:
             conn.close()
+
+def fetch_story_embedding(db_config, story_id, use_sqlite=True):
+    """Fetch the embedding vector for a single story from PostgreSQL.
+    
+    Args:
+        db_config: If use_sqlite is True, this is the SQLite database file path.
+                   If use_sqlite is False, this is a dict with PostgreSQL connection params.
+        story_id: The story ID to fetch embedding for
+        use_sqlite: Boolean indicating whether to use SQLite (True) or PostgreSQL (False)
+    
+    Returns:
+        List of 768 floating point values, or None if not found or if using SQLite
+    """
+    if use_sqlite:
+        return None  # Embeddings only available in PostgreSQL
+    
+    conn = _get_connection(use_sqlite, db_config)
+    try:
+        c = conn.cursor()
+        # Assuming story_embeddings table has columns: id (or story_id) and story_embeddings
+        # PostgreSQL arrays are returned as lists, JSONB might need parsing
+        query = "SELECT story_embedding FROM stories WHERE id = %s"
+        c.execute(query, (story_id,))
+        row = c.fetchone()
+        if row and row[0] is not None:
+            embedding = row[0]
+            # Handle different PostgreSQL array types: array, JSONB, or plain list
+            if isinstance(embedding, list):
+                return embedding
+            elif isinstance(embedding, str):
+                # Might be JSONB string, try to parse
+                import json
+                try:
+                    return json.loads(embedding)
+                except:
+                    return None
+            else:
+                # Try to convert to list
+                try:
+                    return list(embedding)
+                except:
+                    return None
+        return None
+    finally:
+        # PostgreSQL connection is cached, don't close
+        pass
+
+def fetch_all_story_embeddings(db_config, use_sqlite=True):
+    """Fetch all story embeddings from PostgreSQL for lazy loading.
+    
+    Args:
+        db_config: If use_sqlite is True, this is the SQLite database file path.
+                   If use_sqlite is False, this is a dict with PostgreSQL connection params.
+        use_sqlite: Boolean indicating whether to use SQLite (True) or PostgreSQL (False)
+    
+    Returns:
+        Dictionary mapping story_id to embedding list: {story_id: [float, ...], ...}
+        Returns empty dict if using SQLite or if no embeddings found
+    """
+    if use_sqlite:
+        return {}  # Embeddings only available in PostgreSQL
+    
+    conn = _get_connection(use_sqlite, db_config)
+    embeddings = {}
+    try:
+        c = conn.cursor()
+        # Fetch all embeddings: id and story_embeddings column
+        query = "SELECT id, story_embedding FROM stories WHERE story_embedding IS NOT NULL"
+        c.execute(query)
+        rows = c.fetchall()
+        
+        for row in rows:
+            story_id = row[0]
+            embedding = row[1]
+            if embedding is not None:
+                # Handle different PostgreSQL array types
+                if isinstance(embedding, list):
+                    embeddings[story_id] = embedding
+                elif isinstance(embedding, str):
+                    # Might be JSONB string
+                    import json
+                    try:
+                        embeddings[story_id] = json.loads(embedding)
+                    except:
+                        continue
+                else:
+                    # Try to convert to list
+                    try:
+                        embeddings[story_id] = list(embedding)
+                    except:
+                        continue
+        
+        return embeddings
+    finally:
+        # PostgreSQL connection is cached, don't close
+        pass

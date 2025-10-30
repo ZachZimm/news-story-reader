@@ -12,7 +12,14 @@ def display_list(stdscr, titles, datestring, initial_selection=0):
       - ("command", user_input, current_row) if user typed ':'.
     """
     current_row = initial_selection
-    current_date = datetime.datetime.strptime(datestring, "%Y%m%d").strftime("%B %d, %Y")
+    # Handle KNN Results or regular date strings
+    if datestring == "KNN Results":
+        current_date = "KNN Results"
+    else:
+        try:
+            current_date = datetime.datetime.strptime(datestring, "%Y%m%d").strftime("%B %d, %Y")
+        except ValueError:
+            current_date = datestring  # Fallback to original string if parsing fails
 
     while True:
         stdscr.clear()
@@ -34,7 +41,7 @@ def display_list(stdscr, titles, datestring, initial_selection=0):
         stdscr.addstr(
             h - 1,
             0,
-            "Use UP/DOWN/j/k to navigate, ENTER to select, : for commands, ESC/q to exit."
+            "Use UP/DOWN/j/k to navigate, ENTER to select, : for commands (use :k<N> for similar stories), ESC/q to exit."
         )
         stdscr.refresh()
 

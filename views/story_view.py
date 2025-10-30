@@ -33,13 +33,17 @@ def _get_wrapped_lines(story, col_width):
     
     return _wrapped_cache[cache_key]
 
-def display_story(stdscr, title, story, story_index, datestring, offset=0):
+def display_story(stdscr, title, story, story_index, datestring, offset=0, knn_results=None):
     """
     Returns one of:
       - "back" if user pressed q
       - "exit" if user pressed ESC
       - ("command", command_string, offset) if user typed a command
         (including current scroll offset).
+    
+    Args:
+        knn_results: If not None, indicates we're viewing a story from KNN results.
+                    When Q is pressed, should return to KNN results list.
     """
     curses.curs_set(0)
     h, w = stdscr.getmaxyx()
@@ -93,7 +97,7 @@ def display_story(stdscr, title, story, story_index, datestring, offset=0):
         stdscr.addstr(
             h - 1,
             0,
-            "Use UP/DOWN/j/k to scroll, 'q' to go back, ESC to exit, : for commands."
+            "Use UP/DOWN/j/k to scroll, 'q' to go back, ESC to exit, : for commands (use :k<N> for similar stories)."
         )
         stdscr.refresh()
 
