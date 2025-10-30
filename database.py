@@ -141,33 +141,3 @@ def fetch_story_content(db_config, story_id, use_sqlite=True):
         # Only close connection if SQLite (PostgreSQL connection is cached)
         if use_sqlite:
             conn.close()
-
-def fetch_stories(db_config, date_str, use_sqlite=True):
-    """Fetch stories for a given date (DEPRECATED: kept for backward compatibility).
-    
-    This function loads all content upfront. Use fetch_story_titles() + fetch_story_content()
-    for better performance.
-    
-    Args:
-        db_config: If use_sqlite is True, this is the SQLite database file path.
-                   If use_sqlite is False, this is a dict with PostgreSQL connection params.
-        date_str: The date string to fetch stories for
-        use_sqlite: Boolean indicating whether to use SQLite (True) or PostgreSQL (False)
-    
-    Returns:
-        Tuple of (titles list, stories content list)
-    """
-    conn = _get_connection(use_sqlite, db_config)
-    try:
-        c = conn.cursor()
-        query = "SELECT * FROM stories WHERE issue_date=%s" if not use_sqlite else "SELECT * FROM stories WHERE issue_date=?"
-        c.execute(query, (date_str,))
-        rows = c.fetchall()
-        # rows: (id, title, author, issue_date, content)
-        titles = [r[1] for r in rows]
-        stories = [r[4] for r in rows]
-        return titles, stories
-    finally:
-        # Only close connection if SQLite (PostgreSQL connection is cached)
-        if use_sqlite:
-            conn.close()
