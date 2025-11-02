@@ -86,7 +86,22 @@ def tui(stdscr, db_config, default_datestring, use_sqlite=True):
         # Determine which list to display
         display_titles = knn_results['titles'] if knn_results else titles
         display_story_ids = knn_results['story_ids'] if knn_results else story_ids
-        display_date = "KNN Results" if knn_results else current_date
+        if knn_results:
+            # Get the title of the source story used for the search
+            source_story_id = knn_results['source_story_id']
+            if source_story_id in story_cache:
+                source_title = story_cache[source_story_id]['title']
+            else:
+                # Fallback: try to fetch it (shouldn't happen, but handle gracefully)
+                source_story_data = fetch_story_content(db_config, source_story_id, use_sqlite)
+                if source_story_data:
+                    story_cache[source_story_id] = source_story_data
+                    source_title = source_story_data['title']
+                else:
+                    source_title = f"Story {source_story_id}"
+            display_date = f"KNN Results - {source_title}"
+        else:
+            display_date = current_date
         
         list_result = display_list(stdscr, display_titles, display_date, selected_index)
         if list_result is None:
